@@ -1,6 +1,9 @@
 class_name SpatialClient
 
-var position: Vector2
-var size: Vector2
-var data: Node2D
-var current_cells: Array = []
+var position: Vector3
+var entity: Node3D
+var index: int
+
+func _init(_position: Vector3 = Vector3.ZERO, _entity: Node3D = null):
+	position = _position
+	entity = _entity
