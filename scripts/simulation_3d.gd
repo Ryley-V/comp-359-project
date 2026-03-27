@@ -1,19 +1,16 @@
-# need to add collisions using spatial hash grid, visual updates on collison,
-# and UI that shows FPS, entities, colliding entities, etc
-
 extends Node3D
 
-@export var entity_count: int = 10000
+@export var entity_count: int = 3000
 @export var world_size: float = 35.0
 @export var cell_size: float = 4.0
-@export var collision_radius: float = 2.0
+@export var collision_radius: float = 1.0
 @export var entity_speed: float = 8.0
 @export var sphere_radius: float = 0.45
 
 const BASE_COLOR := Color(0.2, 0.5, 1.0)
 const COLLISION_COLOR := Color(1.0, 0.35, 0.1)
 
-var grid: SpatialHashGrid
+var grid: SpatialHashGridFast
 var clients: Array[SpatialClient] = []
 var velocities: Array[Vector3] = []
 var collision_flags: Array[bool] = []
@@ -38,12 +35,15 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_move_entities(delta)
-	# detect collisions
+	_detect_collisions()
 	_update_visuals()
-	# update UI
+	_update_ui()
 
 func _setup_simulation() -> void:
-	grid = SpatialHashGrid.new(cell_size)
+	var world_min := Vector3(-world_size, -world_size, -world_size)
+	var world_max := Vector3(world_size, world_size, world_size)
+
+	grid = SpatialHashGridFast.new(cell_size, world_min, world_max)
 
 	clients.resize(entity_count)
 	velocities.resize(entity_count)
@@ -178,6 +178,50 @@ func _move_entities(delta: float) -> void:
 		velocities[i] = velocity
 		grid.update(client, old_position)
 
+func _detect_collisions() -> void:
+	var start_time = Time.get_ticks_usec()
+	var radius_sq = collision_radius * collision_radius
+
+	collision_pair_count = 0
+	broadphase_candidate_count = 0
+
+	for i in range(entity_count):
+		collision_flags[i] = false
+
+	for i in range(entity_count):
+		var client = clients[i]
+		var candidates = grid.find_nearby(client.position, collision_radius)
+		var seen = {}
+
+		broadphase_candidate_count += candidates.size()
+		for other in candidates:
+			if other == client:
+				continue
+
+			var other_client = other as SpatialClient
+			var j = other_client.index
+
+			if j <= i:
+				continue
+			
+			if seen.has(j):
+				continue
+			seen[j] = true
+
+			if client.position.distance_squared_to(other_client.position) <= radius_sq:
+				collision_flags[i] = true
+				collision_flags[j] = true
+				collision_pair_count += 1
+		
+	query_time_ms = (Time.get_ticks_usec() - start_time) / 1000.0
+
+func _update_ui() -> void:
+	fps_label.text = "FPS: %.1f" % Engine.get_frames_per_second()
+	info_label.text = "Entities: %d\nCollisions: %d\nQuery Time: %.2f ms" % [
+		entity_count,
+		collision_pair_count,
+		query_time_ms
+	]
 
 func _update_visuals() -> void:
 	for i in range(entity_count):

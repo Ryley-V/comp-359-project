@@ -3,9 +3,13 @@ class_name SpatialHashGrid
 var cell_size: float
 var _cells: Dictionary = {}
 
-func _init(_cell_size: float):
+func _init(
+	_cell_size: float,
+	_world_min: Vector3 = Vector3.ZERO,
+	_world_max: Vector3 = Vector3.ZERO
+):
 	cell_size = _cell_size
-
+	
 func _cell_key(x: int, y: int, z: int) -> Vector3i:
 	return Vector3i(x, y, z)
 

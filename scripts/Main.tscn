@@ -1,26 +1,131 @@
-[gd_scene format=3 uid="uid://w6i3tcts3ur3"]
+[gd_scene load_steps=8 format=3 uid="uid://dnm0xjcwm76dd"]
 
-[ext_resource type="Script" uid="uid://cy72s1t1ah1rq" path="res://main.gd" id="1_uu6xs"]
-[ext_resource type="PackedScene" uid="uid://dk3wrwnbem6ei" path="res://Ball.tscn" id="2_r0du0"]
-[ext_resource type="Script" uid="uid://dfkgbvtdjvp8v" path="res://detector.gd" id="3_r0du0"]
+[sub_resource type="GDScript" id="GDScript_83rri"]
+script/source = "extends Node3D
+
+@export var ball_scene: PackedScene
+@export var detect_radius: float = 8.0
+@export var neighbour_radius: float = 16.0
+
+var balls: Array = []
+var clients: Array = []
+var grid: SpatialHashGridFast3D
+
+func _ready():
+	grid = SpatialHashGridFast3D.new(5.0)  # no world size needed anymore
+	add_child(grid)
+	for i in range(100):
+		var b = ball_scene.instantiate()
+		# add randf_range(-50, 50) insted of 0 for y, if you want to see the 3d
+		b.position = Vector3(randf_range(-50, 50), 0, randf_range(-50, 50))
+		add_child(b)
+		balls.append(b)
+		var client = SpatialClientFast3D.new()
+		client.position = b.position
+		client.data = b
+		grid.insert(client)
+		clients.append(client)
+
+func _process(delta):
+	for i in clients.size():
+		var old_pos = clients[i].position
+		clients[i].position = balls[i].position
+		grid.update(clients[i], old_pos)
+	var detector = $Detector
+	var nearby = grid._find_nearby(detector.position, neighbour_radius)
+	for b in balls:
+		b.set_color(Color.WHITE)
+	for client in nearby:
+		var dist = client.position.distance_to(detector.position)
+		if dist < detect_radius:
+			client.data.set_color(Color.RED)
+		elif dist < neighbour_radius:
+			client.data.set_color(Color.YELLOW)
+"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gk6bx"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_pa54t"]
+material = SubResource("StandardMaterial3D_gk6bx")
+radius = 2.471
+height = 4.942
+
+[sub_resource type="GDScript" id="GDScript_0u2qd"]
+script/source = "extends MeshInstance3D
+
+var velocity: Vector3
+var _mat: StandardMaterial3D
+
+func _ready():
+	velocity = Vector3(randf_range(-1,1), 0.0, randf_range(-1,1)).normalized() * 10.0
+	_mat = StandardMaterial3D.new()
+	_mat.albedo_color = Color.WHITE
+	set_surface_override_material(0, _mat)
+
+func _process(delta):
+	position += velocity * delta
+	if position.x > 50 or position.x < -50: velocity.x *= -1
+	if position.z > 50 or position.z < -50: velocity.z *= -1
+	if position.y > 50 or position.y < 20: velocity.y *= -1
+	
+
+func set_color(color: Color):
+	_mat.albedo_color = color
+"
+
+[sub_resource type="PackedScene" id="PackedScene_lr4f5"]
+_bundled = {
+"conn_count": 0,
+"conns": PackedInt32Array(),
+"editable_instances": [],
+"names": PackedStringArray("MeshInstance3D", "MeshInstance3D", "mesh", "script"),
+"node_count": 1,
+"node_paths": [],
+"nodes": PackedInt32Array(-1, -1, 1, 0, -1, 2, 2, 0, 3, 1, 0),
+"variants": [SubResource("SphereMesh_pa54t"), SubResource("GDScript_0u2qd")],
+"version": 3
+}
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_r0du0"]
 size = Vector2(10, 10)
 
-[node name="Node3D" type="Node3D" unique_id=971063182]
-script = ExtResource("1_uu6xs")
-ball_scene = ExtResource("2_r0du0")
+[sub_resource type="GDScript" id="GDScript_i8f85"]
+script/source = "extends MeshInstance3D
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=1066038264]
+var speed: float = 25.0
+
+#func _ready():
+	#var mesh = BoxMesh.new()
+	#mesh.size = Vector3(10, 100, 10)  # tall column, 8x8 on XZ
+	#set_mesh(mesh)
+	#var mat = StandardMaterial3D.new()
+	#mat.albedo_color = Color(1, 1, 0, 0.2)  # transparent yellow
+	#mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	#mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # visible from inside
+	#set_surface_override_material(0, mat)
+
+func _process(delta):
+	if Input.is_key_pressed(KEY_LEFT): position.x -= speed * delta
+	if Input.is_key_pressed(KEY_RIGHT): position.x += speed * delta
+	if Input.is_key_pressed(KEY_UP): position.z -= speed * delta
+	if Input.is_key_pressed(KEY_DOWN): position.z += speed * delta
+	position = position.clamp(Vector3(-50, 0, -50), Vector3(50, 0, 50))
+"
+
+[node name="Node3D" type="Node3D"]
+script = SubResource("GDScript_83rri")
+ball_scene = SubResource("PackedScene_lr4f5")
+
+[node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(0.70710677, -0.4055798, 0.579228, 0, 0.81915206, 0.57357645, -0.70710677, -0.4055798, 0.579228, 80, 60, 80)
 fov = 42.5
 size = 0.001
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=457192128]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.99903506, -0.007028901, 0.043352995, -0.033124678, 0.5275673, 0.84886724, -0.028838225, -0.84948415, 0.5268254, 0, 15.920731, 0)
 light_energy = 1.5
 
-[node name="Detector" type="MeshInstance3D" parent="." unique_id=2141559115]
+[node name="Detector" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.023403645, -14.149017, 0.081792116)
 mesh = SubResource("PlaneMesh_r0du0")
-script = ExtResource("3_r0du0")
+script = SubResource("GDScript_i8f85")
