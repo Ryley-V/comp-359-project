@@ -25,6 +25,9 @@ var collision_pair_count: int = 0
 var broadphase_candidate_count: int = 0
 var query_time_ms: float = 0.0
 
+var use_spatial := true
+var naive := Naive.new()
+
 func _ready() -> void:
 	randomize()
 	_setup_environment()
@@ -32,8 +35,13 @@ func _ready() -> void:
 	_setup_ui()
 	_setup_shared_mesh()
 	_setup_simulation()
+	add_child(naive)
 
 func _process(delta: float) -> void:
+	if Input.is_action_just_pressed("ui_accept"):
+		use_spatial = !use_spatial
+		print("Mode switched — Using Spatial:", use_spatial)
+
 	_move_entities(delta)
 	_detect_collisions()
 	_update_visuals()
@@ -190,9 +198,13 @@ func _detect_collisions() -> void:
 
 	for i in range(entity_count):
 		var client = clients[i]
-		var candidates = grid.find_nearby(client.position, collision_radius)
-		var seen = {}
+		var candidates: Array
+		if use_spatial:
+			candidates = grid.find_nearby(client.position, collision_radius)
+		else:
+			candidates = naive.get_nearby(client, collision_radius, clients)
 
+		var seen = {}
 		broadphase_candidate_count += candidates.size()
 		for other in candidates:
 			if other == client:
@@ -217,10 +229,12 @@ func _detect_collisions() -> void:
 
 func _update_ui() -> void:
 	fps_label.text = "FPS: %.1f" % Engine.get_frames_per_second()
-	info_label.text = "Entities: %d\nCollisions: %d\nQuery Time: %.2f ms" % [
+	info_label.text = "Entities: %d\nCollisions: %d\nCandidates: %d\nQuery Time: %.2f ms\nMode: %s" % [
 		entity_count,
 		collision_pair_count,
+		broadphase_candidate_count,
 		query_time_ms
+		"Spatial" if use_spatial else "Naive"
 	]
 
 func _update_visuals() -> void:
